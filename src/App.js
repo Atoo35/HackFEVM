@@ -57,11 +57,11 @@ function App () {
         <div className="row">
           <div className="col-12">
             <h1 className="text-center">NFT List</h1>
-            {nfts.map((nft, i) => (
+            {nfts.length > 0 ? nfts.map((nft, i) => (
               // <div key={i} className="card" >
               <img key={i} src={nft.image} style={{ height: 400, width: 400, margin: 10 }} className="img-fluid" />
               // </div>
-            ))}
+            )) : <p>It seems you need to build some reputation!</p>}
           </div>
         </div>
       </div>
