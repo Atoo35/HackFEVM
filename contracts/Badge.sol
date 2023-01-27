@@ -9,39 +9,56 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Badge is ERC721URIStorage, Ownable {
+contract Badge is ERC721URIStorage {
     using Strings for uint256;
     using Counters for Counters.Counter;
+    address authorizingAddress;
     Counters.Counter private _tokenIds;
     struct NFTData{
         string name;
         uint level;
+        uint startDate;
+        string designation;
+        uint expiration;
+        bool isVerified;
+        uint verifiedOn;
     }
+
     mapping(uint256 => NFTData) public tokenIdToLevels;
     mapping(address => uint256[]) public addressToTokenIds;
 
-    constructor() ERC721 ("Badge", "badge"){
+    modifier onlyAuthorizedAddress {
+        require(msg.sender == authorizingAddress,"Not authorised");
+        _;
+    }
+
+    constructor(address _authorizingAddress) ERC721 ("Badge", "badge"){
+        authorizingAddress = _authorizingAddress;
     }
     
-    function mint(string memory name, address to) public onlyOwner {
+    function mint(string memory name, uint startDate, string memory designation, uint expiration,  address to) public {
         _tokenIds.increment();
         uint256 newItemId = _tokenIds.current();
         _mint(to, newItemId);
-        tokenIdToLevels[newItemId] = NFTData(name,1);
+        tokenIdToLevels[newItemId] = NFTData(name,1, startDate,designation,expiration,false,0);
         addressToTokenIds[to].push(newItemId);
         _setTokenURI(newItemId, getTokenURI(newItemId));
     }
 
-    function generateCharacter(uint256 tokenId) public view returns(string memory){
+    function generateCharacter(uint256 tokenId) private view returns(string memory){
     NFTData memory level = getLevels(tokenId);
     bytes memory svg = abi.encodePacked(
         '<svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMinYMin meet" viewBox="0 0 350 350">',
         '<style>.base { fill: white; font-family: serif; font-size: 14px; }</style>',
         '<rect width="100%" height="100%" fill="black" />',
-        '<text x="50%" y="40%" class="base" dominant-baseline="middle" text-anchor="middle">',"Name: ",level.name,'</text>',
-        '<text x="50%" y="50%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.level.toString(),'</text>',
+        '<text x="50%" y="20%" class="base" dominant-baseline="middle" text-anchor="middle">',"Name: ",level.name,'</text>',
+        '<text x="50%" y="30%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.level.toString(),'</text>',
+        '<text x="50%" y="40%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.startDate.toString(),'</text>',
+        '<text x="50%" y="50%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.designation,'</text>',
+        '<text x="50%" y="60%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.isVerified,'</text>',
+        '<text x="50%" y="70%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.verifiedOn.toString(),'</text>',
+        '<text x="50%" y="80%" class="base" dominant-baseline="middle" text-anchor="middle">', "Level: ",level.expiration,'</text>',
         '</svg>'
     );
     return string(
@@ -53,8 +70,8 @@ contract Badge is ERC721URIStorage, Ownable {
     }
 
     function getLevels(uint256 tokenId) public view returns (NFTData memory) {
-    NFTData memory levels = tokenIdToLevels[tokenId];
-    return levels;
+        NFTData memory levels = tokenIdToLevels[tokenId];
+        return levels;
     }
 
     function getAllTokenIdsOfAddress(address user) public view returns (uint256[] memory){
@@ -77,11 +94,17 @@ contract Badge is ERC721URIStorage, Ownable {
     );
     }
 
-     function train(uint256 tokenId, string memory name) public onlyOwner{
-        require(_exists(tokenId));
-        NFTData storage currentLevel = tokenIdToLevels[tokenId];
-        tokenIdToLevels[tokenId].level = currentLevel.level + 1;
-        tokenIdToLevels[tokenId].name = name;
-        _setTokenURI(tokenId, getTokenURI(tokenId));
+    function authorizeValidity(uint tokenId) public onlyAuthorizedAddress {
+        NFTData storage nftData = tokenIdToLevels[tokenId];
+        nftData.isVerified = true;
+        nftData.verifiedOn = block.timestamp;
+    }
+
+    function upgrade(uint256 _tokenId, string memory _name, uint _expiration) public onlyAuthorizedAddress{
+        require(_exists(_tokenId));
+        NFTData storage nftData = tokenIdToLevels[_tokenId];
+        nftData.name = _name;
+        nftData.expiration = _expiration;
+        _setTokenURI(_tokenId, getTokenURI(_tokenId));
     }
 }
